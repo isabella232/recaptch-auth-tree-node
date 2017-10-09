@@ -1,0 +1,3 @@
+org/forgerock/openam/auth/nodes/RecaptchaNodePlugin.class
+org/forgerock/openam/auth/nodes/RecaptchaNode$Config.class
+org/forgerock/openam/auth/nodes/RecaptchaNode.class
