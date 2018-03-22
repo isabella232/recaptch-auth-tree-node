@@ -11,15 +11,13 @@
  * Header, with the fields enclosed by brackets [] replaced by your own identifying
  * information: "Portions copyright [year] [name of copyright owner]".
  *
- * Copyright 2017 ForgeRock AS.
+ * Copyright 2017-2018 ForgeRock AS.
  */
 /**
  * jon.knight@forgerock.com
  *
  * A node that displays a Google reCAPTCHA widget. 
  */
-
-
 
 package org.forgerock.openam.auth.nodes;
 
@@ -36,7 +34,6 @@ import javax.security.auth.callback.Callback;
 import java.util.Optional;
 
 import static org.forgerock.openam.auth.node.api.Action.send;
-
 
 /**
  * A node that increases or decreases the current auth level by a fixed, configurable amount.
@@ -75,19 +72,37 @@ public class RecaptchaNode extends SingleOutcomeNode {
 
     @Override
     public Action process(TreeContext context) throws NodeProcessException {
-
         String script =
-            "var recaptchaScript = document.createElement(\"script\"); recaptchaScript.type = \"text/javascript\"; recaptchaScript.src = \"https://www.google.com/recaptcha/api.js\"; document.body.appendChild(recaptchaScript); \n" +
-            "var callbackScript = document.createElement(\"script\"); callbackScript.type = \"text/javascript\"; callbackScript.text = \"function completed(response) { $(\'input[type=submit]\').trigger(\'click\'); }\"; document.body.appendChild(callbackScript); \n" +
-            "spinner.hideSpinner(); \n" +
-            "submitted = true; \n" +
-            "$(document).ready(function(){ \n" +
-            "    fs = $(document.forms[0]).find(\"fieldset\"); \n" +
-            "    $('#loginButton_0').hide(); \n" +
-            "    strUI1='<div align=\"center\" class=\"g-recaptcha\" data-sitekey=\"" + config.siteKey() + "\" data-callback=\"completed\"></div>'; \n" +
-            "    $(fs).prepend(strUI1); \n" +
-            "}); \n";
-
+            "var recaptchaScript = document.createElement(\"script\");\n" +
+            "recaptchaScript.type = \"text/javascript\";\n" +
+            "recaptchaScript.src = \"https://www.google.com/recaptcha/api.js\";\n" +
+            "document.body.appendChild(recaptchaScript);\n" +
+            "\n" +
+            "var callbackScript = document.createElement(\"script\");\n" +
+            "callbackScript.type = \"text/javascript\";\n" +
+            "callbackScript.text = \"function completed() { document.querySelector(\\\"input[type=submit]\\\").click(); }\";\n" +
+            "document.body.appendChild(callbackScript);\n" +
+            "\n" +
+            "submitted = true;\n" +
+            "\n" +
+            "function callback() {\n" +
+            "    document.getElementById(\"loginButton_0\").style.display = \"none\";\n" +
+            "\n" +
+            "    var div = document.createElement(\"div\");\n" +
+            "    div.align = \"center\";\n" +
+            "    div.className = \"g-recaptcha\";\n" +
+            "    div.setAttribute(\"data-sitekey\", \"" + config.siteKey() + "\");\n" +
+            "    div.setAttribute(\"data-callback\" ,\"completed\");\n" +
+            "\n" +
+            "    var fieldset = document.forms[0].getElementsByTagName(\"fieldset\")[0];\n" +
+            "    fieldset.prepend(div);\n" +
+            "}\n" +
+            "\n" +
+            "if (document.readyState !== 'loading') {\n" +
+            "  callback();\n" +
+            "} else {\n" +
+            "  document.addEventListener(\"DOMContentLoaded\", callback);\n" +
+            "}";
 
         debug.error("[" + DEBUG_FILE + "]: " + "Starting");
 
@@ -96,8 +111,7 @@ public class RecaptchaNode extends SingleOutcomeNode {
             return goToNext().build();
         } else {
 
-            String clientSideScriptExecutorFunction = createClientSideScriptExecutorFunction(script, "clientScriptOutputData",
-                    true);
+            String clientSideScriptExecutorFunction = createClientSideScriptExecutorFunction(script, "clientScriptOutputData");
             ScriptTextOutputCallback scriptAndSelfSubmitCallback =
                     new ScriptTextOutputCallback(clientSideScriptExecutorFunction);
 
@@ -109,43 +123,22 @@ public class RecaptchaNode extends SingleOutcomeNode {
         }
     }
 
-    public static String createClientSideScriptExecutorFunction(String script, String outputParameterId,
-                                                                boolean clientSideScriptEnabled) {
-        String collectingDataMessage = "";
-        if (clientSideScriptEnabled) {
-            collectingDataMessage = "    messenger.messages.addMessage( message );\n";
-        }
-
-        String spinningWheelScript = "if (window.require) {\n" +
-                "    var messenger = require(\"org/forgerock/commons/ui/common/components/Messages\"),\n" +
-                "        spinner =  require(\"org/forgerock/commons/ui/common/main/SpinnerManager\"),\n" +
-                "        message =  {message:\"Collecting Data...\", type:\"info\"};\n" +
-                "    spinner.showSpinner();\n" +
-                collectingDataMessage +
-                "}";
-
+    public static String createClientSideScriptExecutorFunction(String script, String outputParameterId) {
         return String.format(
-                spinningWheelScript +
-                        "(function(output) {\n" +
-                        "    var autoSubmitDelay = 0,\n" +
-                        "        submitted = false;\n" +
-                        "    function submit() {\n" +
-                        "        if (submitted) {\n" +
-                        "            return;\n" +
-                        "        }" +
-                        "        if (!(window.jQuery)) {\n" + // Crude detection to see if XUI is not present.
-                        "            document.forms[0].submit();\n" +
-                        "        } else {\n" +
-                        "            $('input[type=submit]').trigger('click');\n" +
-                        "        }\n" +
-                        "        submitted = true;\n" +
-                        "    }\n" +
-                        "    %s\n" + // script
-                        "    setTimeout(submit, autoSubmitDelay);\n" +
-                        "}) (document.forms[0].elements['%s']);\n", // outputParameterId
+                "(function(output) {\n" +
+                "    var autoSubmitDelay = 0,\n" +
+                "        submitted = false;\n" +
+                "    function submit() {\n" +
+                "        if (submitted) {\n" +
+                "            return;\n" +
+                "        }" +
+                "        document.forms[0].submit();\n" +
+                "        submitted = true;\n" +
+                "    }\n" +
+                "    %s\n" + // script
+                "    setTimeout(submit, autoSubmitDelay);\n" +
+                "}) (document.forms[0].elements['%s']);\n", // outputParameterId
                 script,
                 outputParameterId);
     }
-
-
 }
